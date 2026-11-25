@@ -1,0 +1,6 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/${DB_NAME:giacpe_dev}
+    username: ${DB_USER:giacpe}
+    password: ${DB_PASSWORD}
+    
