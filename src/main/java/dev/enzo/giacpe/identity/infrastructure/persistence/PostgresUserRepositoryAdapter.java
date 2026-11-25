@@ -37,6 +37,6 @@ public class PostgresUserRepositoryAdapter implements UserRepository {
 
     @Override
     public boolean existsByEmail(String email) {
-        return repository.findByEmailIgnoreCase(email).isPresent();
+        return repository.existsByEmailIgnoreCase(email);
     }
 }
