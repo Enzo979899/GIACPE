@@ -185,4 +185,29 @@ class UserRepositoryIntegrationTest {
         );
     }
 
+    @Test
+    void shouldRejectActivatedUserWithBlankPasswordHash() {
+        UUID userId = UUID.randomUUID();
+
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> jdbcTemplate.update(
+                        """
+                        INSERT INTO users (
+                            id, name, email, password_hash, role,
+                            activation_status, enabled
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        userId,
+                        "Test User",
+                        "blank-" + userId + "@example.com",
+                        "   ",
+                        "FIELD_OFFICER",
+                        "ACTIVATED",
+                        true
+                )
+        );
+    }
+
 }
