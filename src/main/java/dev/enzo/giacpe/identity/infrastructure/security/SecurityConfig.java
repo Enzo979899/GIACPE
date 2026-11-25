@@ -18,7 +18,10 @@ public class SecurityConfig {
 
         http
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers(
+                                "/actuator/health",
+                                "/api/auth/csrf"
+                        ).permitAll()
                         .anyRequest().denyAll()
                 )
                 .formLogin(form -> form.disable())
