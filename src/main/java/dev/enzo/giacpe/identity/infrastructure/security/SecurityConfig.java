@@ -10,12 +10,15 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 
 @Configuration
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+            SecurityContextRepository securityContextRepository)
             throws Exception {
 
         http
@@ -25,6 +28,9 @@ public class SecurityConfig {
                                 "/api/auth/csrf"
                         ).permitAll()
                         .anyRequest().denyAll()
+                )
+                .securityContext(context -> context
+                        .securityContextRepository(securityContextRepository)
                 )
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable());
@@ -50,5 +56,10 @@ public class SecurityConfig {
             AuthenticationProvider authenticationProvider) {
 
         return new ProviderManager(authenticationProvider);
+    }
+
+    @Bean
+    public SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
     }
 }
