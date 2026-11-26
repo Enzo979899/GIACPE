@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -308,6 +309,109 @@ class LoginControllerIntegrationTest {
                 () -> assertFalse(renewedToken.isBlank()),
                 () -> assertNotEquals(initialToken, renewedToken)
         );
+    }
+
+    @Test
+    void shouldReturnCurrentAuthenticatedUser() throws Exception {
+        String email = "current-" + UUID.randomUUID() + "@example.com";
+        String password = "SecurePassword123!";
+        Instant now = Instant.now();
+
+        User user = new User(
+                UUID.randomUUID(),
+                "Test User",
+                email,
+                passwordEncoder.encode(password),
+                UserRole.FIELD_OFFICER,
+                ActivationStatus.ACTIVATED,
+                true,
+                now,
+                now
+        );
+
+        userRepository.save(user);
+
+        var loginResult = mockMvc.perform(post("/api/auth/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                                "email": "%s",
+                                "password": "%s"
+                            }
+                            """.formatted(email, password)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        MockHttpSession session = (MockHttpSession)
+                loginResult.getRequest().getSession(false);
+
+        assertNotNull(session);
+
+        mockMvc.perform(get("/api/auth/me")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(email))
+                .andExpect(jsonPath("$.roles[0]").value("ROLE_FIELD_OFFICER"));
+    }
+
+    @Test
+    void shouldRejectCurrentUserRequestWithoutAuthentication() throws Exception {
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldCompleteLoginAndLogoutFlow() throws Exception {
+        String email = "session-flow-" + UUID.randomUUID() + "@example.com";
+        String password = "SecurePassword123!";
+        Instant now = Instant.now();
+
+        User user = new User(
+                UUID.randomUUID(),
+                "Test User",
+                email,
+                passwordEncoder.encode(password),
+                UserRole.FIELD_OFFICER,
+                ActivationStatus.ACTIVATED,
+                true,
+                now,
+                now
+        );
+
+        userRepository.save(user);
+
+        var loginResult = mockMvc.perform(post("/api/auth/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                                "email": "%s",
+                                "password": "%s"
+                            }
+                            """.formatted(email, password)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        MockHttpSession session = (MockHttpSession)
+                loginResult.getRequest().getSession(false);
+
+        assertNotNull(session);
+
+        mockMvc.perform(get("/api/auth/me")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(email));
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .session(session)
+                        .with(csrf()))
+                .andExpect(status().isNoContent());
+
+        assertTrue(session.isInvalid());
+
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isForbidden());
     }
 
 
