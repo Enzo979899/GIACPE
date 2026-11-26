@@ -12,25 +12,32 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 
 @Configuration
 public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
-            SecurityContextRepository securityContextRepository)
-            throws Exception {
+            SecurityContextRepository securityContextRepository,
+            CsrfTokenRepository csrfTokenRepository
+    ) throws Exception {
 
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/actuator/health",
-                                "/api/auth/csrf"
+                                "/api/auth/csrf",
+                                "/api/auth/login"
                         ).permitAll()
                         .anyRequest().denyAll()
                 )
                 .securityContext(context -> context
                         .securityContextRepository(securityContextRepository)
+                )
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(csrfTokenRepository)
                 )
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable());
@@ -61,5 +68,10 @@ public class SecurityConfig {
     @Bean
     public SecurityContextRepository securityContextRepository() {
         return new HttpSessionSecurityContextRepository();
+    }
+
+    @Bean
+    public CsrfTokenRepository csrfTokenRepository() {
+        return new HttpSessionCsrfTokenRepository();
     }
 }
