@@ -358,7 +358,7 @@ class LoginControllerIntegrationTest {
     @Test
     void shouldRejectCurrentUserRequestWithoutAuthentication() throws Exception {
         mockMvc.perform(get("/api/auth/me"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -411,6 +411,48 @@ class LoginControllerIntegrationTest {
         assertTrue(session.isInvalid());
 
         mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldRejectAuthenticatedUserWithoutPermission() throws Exception {
+        String email = "forbidden-" + UUID.randomUUID() + "@example.com";
+        String password = "SecurePassword123!";
+        Instant now = Instant.now();
+
+        User user = new User(
+                UUID.randomUUID(),
+                "Test User",
+                email,
+                passwordEncoder.encode(password),
+                UserRole.FIELD_OFFICER,
+                ActivationStatus.ACTIVATED,
+                true,
+                now,
+                now
+        );
+
+        userRepository.save(user);
+
+        var loginResult = mockMvc.perform(post("/api/auth/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                                "email": "%s",
+                                "password": "%s"
+                            }
+                            """.formatted(email, password)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        MockHttpSession session = (MockHttpSession)
+                loginResult.getRequest().getSession(false);
+
+        assertNotNull(session);
+
+        mockMvc.perform(get("/api/restricted-test")
+                        .session(session))
                 .andExpect(status().isForbidden());
     }
 
