@@ -1,5 +1,6 @@
 package dev.enzo.giacpe.identity.infrastructure.security;
 
+import dev.enzo.giacpe.identity.domain.repository.UserRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -13,6 +14,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
@@ -25,7 +27,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
             SecurityContextRepository securityContextRepository,
-            CsrfTokenRepository csrfTokenRepository
+            CsrfTokenRepository csrfTokenRepository,
+            UserRepository userRepository
     ) throws Exception {
 
         http
@@ -41,6 +44,10 @@ public class SecurityConfig {
                 )
                 .securityContext(context -> context
                         .securityContextRepository(securityContextRepository)
+                )
+                .addFilterAfter(
+                        new ActiveAccountFilter(userRepository),
+                        AnonymousAuthenticationFilter.class
                 )
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository)
