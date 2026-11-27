@@ -11,6 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
@@ -26,17 +27,20 @@ public class LoginController {
     private final SecurityContextRepository securityContextRepository;
     private final CsrfAuthenticationStrategy csrfAuthenticationStrategy;
     private final CsrfTokenRepository csrfTokenRepository;
+    private final SessionRegistry sessionRegistry;
 
     public LoginController(
             AuthenticationManager authenticationManager,
             SecurityContextRepository securityContextRepository,
-            CsrfTokenRepository csrfTokenRepository) {
+            CsrfTokenRepository csrfTokenRepository,
+            SessionRegistry sessionRegistry) {
 
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.csrfTokenRepository = csrfTokenRepository;
         this.csrfAuthenticationStrategy =
                 new CsrfAuthenticationStrategy(csrfTokenRepository);
+        this.sessionRegistry = sessionRegistry;
     }
 
     @PostMapping("/api/auth/login")
@@ -71,6 +75,11 @@ public class LoginController {
             );
 
             SecurityContextHolder.setContext(context);
+
+            sessionRegistry.registerNewSession(
+                    httpRequest.getSession().getId(),
+                    authentication.getPrincipal()
+            );
 
         } catch (AuthenticationException exception) {
             throw new ResponseStatusException(
