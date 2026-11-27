@@ -1,6 +1,5 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/${DB_NAME:giacpe_dev}
-    username: ${DB_USER:giacpe}
+    url: jdbc:postgresql://localhost:5433/giacpe_dev
+    username: giacpe
     password: ${DB_PASSWORD}
-    
