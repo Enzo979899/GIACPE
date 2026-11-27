@@ -30,6 +30,6 @@ class SecurityConfigIntegrationTest {
     @Test
     void shouldDenyUnauthenticatedRequests() throws Exception {
         mockMvc.perform(get("/api/protected-test"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 }
