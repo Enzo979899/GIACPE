@@ -13,6 +13,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -43,6 +45,12 @@ class ActiveAccountFilterIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private SessionRegistry sessionRegistry;
+
+    @Autowired
+    private UserSessionRevocationService sessionRevocationService;
 
     private String createActiveUser() {
         String email = "active-" + UUID.randomUUID() + "@example.com";
@@ -153,5 +161,153 @@ class ActiveAccountFilterIntegrationTest {
                 .andExpect(status().isUnauthorized());
 
         assertTrue(session.isInvalid());
+    }
+
+    @Test
+    void shouldInvalidateAllUserSessionsAfterDisablingAccount() throws Exception {
+        String email = createActiveUser();
+
+        MockHttpSession firstSession = login(email);
+        MockHttpSession secondSession = login(email);
+
+        assertNotEquals(firstSession.getId(), secondSession.getId());
+
+        jdbcTemplate.update(
+                "UPDATE users SET enabled = false WHERE email = ?",
+                email
+        );
+
+        mockMvc.perform(get("/api/auth/me")
+                        .session(firstSession))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/auth/me")
+                        .session(secondSession))
+                .andExpect(status().isUnauthorized());
+
+        assertTrue(firstSession.isInvalid());
+        assertTrue(secondSession.isInvalid());
+    }
+
+    @Test
+    void shouldRegisterMultipleSessionsForSameUser() throws Exception {
+        String email = createActiveUser();
+
+        MockHttpSession firstSession = login(email);
+        MockHttpSession secondSession = login(email);
+
+        UserDetails principal = sessionRegistry.getAllPrincipals()
+                .stream()
+                .filter(UserDetails.class::isInstance)
+                .map(UserDetails.class::cast)
+                .filter(user -> user.getUsername().equals(email))
+                .findFirst()
+                .orElseThrow();
+
+        var sessions = sessionRegistry.getAllSessions(principal, false);
+
+        assertEquals(2, sessions.size());
+
+        assertTrue(sessions.stream()
+                .anyMatch(session ->
+                        session.getSessionId().equals(firstSession.getId())));
+
+        assertTrue(sessions.stream()
+                .anyMatch(session ->
+                        session.getSessionId().equals(secondSession.getId())));
+    }
+
+    @Test
+    void shouldRejectExpiredSession() throws Exception {
+        String email = createActiveUser();
+
+        MockHttpSession session = login(email);
+
+        var sessionInformation = sessionRegistry
+                .getSessionInformation(session.getId());
+
+        assertNotNull(sessionInformation);
+
+        sessionInformation.expireNow();
+
+        mockMvc.perform(get("/api/auth/me")
+                        .session(session))
+                .andExpect(status().isUnauthorized());
+
+        assertTrue(session.isInvalid());
+    }
+
+    @Test
+    void shouldRevokeAllSessionsForUser() throws Exception {
+        String email = createActiveUser();
+
+        MockHttpSession firstSession = login(email);
+        MockHttpSession secondSession = login(email);
+
+        assertNotEquals(firstSession.getId(), secondSession.getId());
+
+        sessionRevocationService.revokeAllSessions(email);
+
+        var firstSessionInfo =
+                sessionRegistry.getSessionInformation(firstSession.getId());
+
+        var secondSessionInfo =
+                sessionRegistry.getSessionInformation(secondSession.getId());
+
+        assertAll(
+                () -> assertNotNull(firstSessionInfo),
+                () -> assertNotNull(secondSessionInfo),
+                () -> assertTrue(firstSessionInfo.isExpired()),
+                () -> assertTrue(secondSessionInfo.isExpired())
+        );
+
+        mockMvc.perform(get("/api/auth/me")
+                        .session(firstSession))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/auth/me")
+                        .session(secondSession))
+                .andExpect(status().isUnauthorized());
+
+        assertTrue(firstSession.isInvalid());
+        assertTrue(secondSession.isInvalid());
+    }
+
+    @Test
+    void shouldRevokeOnlyTargetUserSessions() throws Exception {
+        String firstUserEmail = createActiveUser();
+        String secondUserEmail = createActiveUser();
+
+        MockHttpSession firstUserSession1 = login(firstUserEmail);
+        MockHttpSession firstUserSession2 = login(firstUserEmail);
+        MockHttpSession secondUserSession = login(secondUserEmail);
+
+        sessionRevocationService.revokeAllSessions(firstUserEmail);
+
+        assertTrue(sessionRegistry
+                .getSessionInformation(firstUserSession1.getId())
+                .isExpired());
+
+        assertTrue(sessionRegistry
+                .getSessionInformation(firstUserSession2.getId())
+                .isExpired());
+
+        assertFalse(sessionRegistry
+                .getSessionInformation(secondUserSession.getId())
+                .isExpired());
+
+        mockMvc.perform(get("/api/auth/me")
+                        .session(firstUserSession1))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/auth/me")
+                        .session(firstUserSession2))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/auth/me")
+                        .session(secondUserSession))
+                .andExpect(status().isOk());
+
+        assertFalse(secondUserSession.isInvalid());
     }
 }
