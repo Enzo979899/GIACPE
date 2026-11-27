@@ -1,6 +1,7 @@
 package dev.enzo.giacpe.identity.infrastructure.persistence;
 
 import dev.enzo.giacpe.identity.domain.model.User;
+import dev.enzo.giacpe.identity.domain.model.UserRole;
 import dev.enzo.giacpe.identity.domain.repository.UserRepository;
 import org.springframework.stereotype.Repository;
 
@@ -38,5 +39,10 @@ public class PostgresUserRepositoryAdapter implements UserRepository {
     @Override
     public boolean existsByEmail(String email) {
         return repository.existsByEmailIgnoreCase(email);
+    }
+
+    @Override
+    public boolean existsByRole(UserRole role) {
+        return repository.existsByRole(role);
     }
 }
